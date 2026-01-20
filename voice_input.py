@@ -2,7 +2,7 @@
 """
 TerminalWhisper - Voice input tool for terminal.
 
-Hold Ctrl+Shift+Space to record, release to transcribe and paste.
+Hold Ctrl+` to record, release to transcribe and paste.
 """
 
 import sys
@@ -73,7 +73,7 @@ class VoiceInputApp:
     def run(self):
         """Run the application."""
         print("TerminalWhisper started")
-        print("Hold Ctrl+Shift+Space to record, release to transcribe")
+        print("Hold Ctrl+` to record, release to transcribe")
         print("Right-click tray icon to exit")
         print()
 

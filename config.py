@@ -14,9 +14,9 @@ SAMPLE_RATE = 16000  # 16kHz for Whisper
 CHANNELS = 1  # Mono
 DTYPE = "int16"  # 16-bit audio
 
-# Hotkey settings (Ctrl+Shift+Space)
-HOTKEY_MODIFIERS = {"ctrl", "shift"}
-HOTKEY_KEY = "space"
+# Hotkey settings (Ctrl+`)
+HOTKEY_MODIFIERS = {"ctrl"}
+HOTKEY_KEY = "`"
 
 # Text injection settings
 PASTE_DELAY = 0.05  # 50ms delay between clipboard copy and paste

@@ -83,7 +83,7 @@ class TrayIcon:
         self._icon = pystray.Icon(
             name="TerminalWhisper",
             icon=self._create_icon_image(color),
-            title="TerminalWhisper - Ctrl+Shift+Space to record",
+            title="TerminalWhisper - Ctrl+` to record",
             menu=self._create_menu(),
         )
 
