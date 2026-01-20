@@ -55,6 +55,7 @@ class TrayIcon:
         """Create the tray icon menu."""
         return pystray.Menu(
             pystray.MenuItem("TerminalWhisper", None, enabled=False),
+            pystray.MenuItem("Hold Ctrl+` to transcribe into any text input", None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Exit", self._handle_exit),
         )
@@ -83,7 +84,7 @@ class TrayIcon:
         self._icon = pystray.Icon(
             name="TerminalWhisper",
             icon=self._create_icon_image(color),
-            title="TerminalWhisper - Ctrl+` to record",
+            title="TerminalWhisper - Hold Ctrl+` to record into any text input",
             menu=self._create_menu(),
         )
 

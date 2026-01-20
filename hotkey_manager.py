@@ -29,10 +29,19 @@ class HotkeyManager:
     def _normalize_key(self, key) -> Optional[str]:
         """Normalize key to string representation."""
         try:
+            # First try character
             if hasattr(key, "char") and key.char:
                 return key.char.lower()
-            elif hasattr(key, "name"):
+            # Then try named keys (like ctrl, shift, etc.)
+            elif hasattr(key, "name") and key.name:
                 return key.name.lower()
+            # Fall back to virtual key code for keys that lose char when Ctrl is held
+            elif hasattr(key, "vk") and key.vk:
+                # Map virtual key codes to key names
+                vk_map = {
+                    192: "`",  # VK_OEM_3 - backtick/grave on US keyboard
+                }
+                return vk_map.get(key.vk)
         except AttributeError:
             pass
         return None
