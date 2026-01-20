@@ -31,7 +31,7 @@ A system tray icon shows the current state:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/TerminalWhisper.git
+   git clone https://github.com/RiccardoGrin/TerminalWhisper.git
    cd TerminalWhisper
    ```
 
@@ -65,7 +65,7 @@ A system tray icon shows the current state:
 
 ### Option 2: Run the Executable
 
-1. **Download** `TerminalWhisper.exe` from the Releases page
+1. **Download** `TerminalWhisper.exe` from the [Releases page](https://github.com/RiccardoGrin/TerminalWhisper/releases)
 
 2. **Create a `.env` file** in the same folder as the exe:
    ```
@@ -207,12 +207,10 @@ To create your own `.exe`:
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --noconsole --name TerminalWhisper --add-data ".env;." voice_input.py
+pyinstaller --onefile --noconsole --name TerminalWhisper voice_input.py
 ```
 
-The executable will be in the `dist` folder.
-
-Note: You'll still need the `.env` file alongside the exe, or bundle it differently for distribution.
+The executable will be in the `dist` folder. Users will need to create their own `.env` file with their API key in the same folder as the exe.
 
 ## Privacy & Security
 
