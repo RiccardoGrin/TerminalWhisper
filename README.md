@@ -94,15 +94,21 @@ A system tray icon shows the current state:
 
 To have TerminalWhisper start automatically when you log in (with admin privileges):
 
-### Option 1: Command Line (Quick)
+### Option 1: PowerShell (Recommended)
 
-Run this in an **Administrator PowerShell**:
+Run this in an **Administrator PowerShell**, replacing the path with your actual exe location:
 
 ```powershell
-schtasks /create /tn "TerminalWhisper" /tr "C:\path\to\TerminalWhisper.exe" /sc onlogon /rl highest /f
+$exePath = "C:\path\to\TerminalWhisper.exe"
+$workingDir = Split-Path $exePath
+$action = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $workingDir
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName "TerminalWhisper" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force
 ```
 
-Replace `C:\path\to\` with the actual path to your exe.
+**Important:** The working directory must be set so the app can find your `.env` file.
 
 ### Option 2: Task Scheduler GUI
 
@@ -125,6 +131,7 @@ Replace `C:\path\to\` with the actual path to your exe.
    - Click "New..."
    - Action: "Start a program"
    - Program/script: `C:\path\to\TerminalWhisper.exe`
+   - **Start in (optional):** `C:\path\to` (the folder containing the exe and .env file - **required!**)
    - (Or for Python: `C:\path\to\venv\Scripts\pythonw.exe`)
    - Add arguments (Python only): `C:\path\to\voice_input.py`
    - Click OK
