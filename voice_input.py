@@ -12,6 +12,7 @@ from transcriber import Transcriber
 from text_injector import TextInjector
 from hotkey_manager import HotkeyManager
 from tray_icon import TrayIcon, TrayState
+from power_monitor import PowerMonitor
 
 
 class VoiceInputApp:
@@ -26,6 +27,7 @@ class VoiceInputApp:
             on_press=self._on_record_start,
             on_release=self._on_record_stop,
         )
+        self._power_monitor = PowerMonitor(on_resume=self._on_system_resume)
         self._running = True
         self._processing_lock = threading.Lock()
 
@@ -65,9 +67,15 @@ class VoiceInputApp:
             self._tray.set_state(TrayState.IDLE)
             print("Ready")
 
+    def _on_system_resume(self):
+        """Called when system resumes from sleep - reinitialize hooks."""
+        print("System resumed from sleep, reinitializing...")
+        self._hotkey.reinitialize()
+
     def _shutdown(self):
         """Shutdown the application."""
         self._running = False
+        self._power_monitor.stop()
         self._hotkey.stop()
 
     def run(self):
@@ -80,6 +88,7 @@ class VoiceInputApp:
         # Start components
         self._tray.start()
         self._hotkey.start()
+        self._power_monitor.start()
 
         # Keep running until shutdown
         try:

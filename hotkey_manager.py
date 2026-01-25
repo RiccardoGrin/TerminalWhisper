@@ -100,6 +100,32 @@ class HotkeyManager:
         self._running = False
         keyboard.unhook_all()
 
+    def reinitialize(self):
+        """
+        Re-register hotkey hooks.
+
+        Call this after system resume from sleep to restore functionality.
+        Windows may invalidate low-level hooks during sleep/wake cycles.
+        """
+        # Clear any stale hook state
+        self._hotkey_active = False
+
+        # Remove all existing hooks
+        keyboard.unhook_all()
+
+        # Re-register hotkey with suppression
+        keyboard.add_hotkey(
+            self._hotkey_string,
+            self._on_hotkey_press,
+            suppress=True,
+            trigger_on_release=False,
+        )
+
+        # Re-hook key releases
+        keyboard.on_release(self._on_any_key_release)
+
+        print("Hotkey hooks reinitialized after system resume")
+
     def join(self):
         """Wait for manager to finish."""
         if self._wait_thread:
