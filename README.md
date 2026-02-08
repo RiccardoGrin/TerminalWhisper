@@ -22,7 +22,6 @@ A system tray icon shows the current state:
 
 - **Windows 10/11**
 - **OpenAI API Key** - Get one at [platform.openai.com](https://platform.openai.com/api-keys)
-- **Administrator privileges** - Required for global hotkey suppression
 - **Microphone** - For voice input
 
 ## Installation
@@ -55,9 +54,7 @@ A system tray icon shows the current state:
    OPENAI_API_KEY=sk-your-actual-api-key-here
    ```
 
-5. **Run as Administrator:**
-   - Open Command Prompt or PowerShell **as Administrator**
-   - Navigate to the project folder and run:
+5. **Run:**
    ```bash
    venv\Scripts\activate
    python voice_input.py
@@ -65,20 +62,18 @@ A system tray icon shows the current state:
 
 ### Option 2: Run the Executable
 
-1. **Download** `TerminalWhisper.exe` from the [Releases page](https://github.com/RiccardoGrin/TerminalWhisper/releases)
+1. **Download** the `TerminalWhisper` folder from the [Releases page](https://github.com/RiccardoGrin/TerminalWhisper/releases) (distributed as a zip)
 
-2. **Create a `.env` file** in the same folder as the exe:
+2. **Create a `.env` file** in the `TerminalWhisper` folder (next to the exe):
    ```
    OPENAI_API_KEY=sk-your-actual-api-key-here
    ```
 
-3. **Run as Administrator:**
-   - Right-click `TerminalWhisper.exe`
-   - Select "Run as administrator"
+3. **Run** `TerminalWhisper.exe` — no admin privileges required
 
 ## Usage
 
-1. Launch TerminalWhisper (as Administrator)
+1. Launch TerminalWhisper
 2. Look for the green circle in your system tray
 3. Click into any text field (terminal, browser, notepad, etc.)
 4. Hold **Ctrl+`** and speak
@@ -92,20 +87,19 @@ A system tray icon shows the current state:
 
 ## Running at Startup
 
-To have TerminalWhisper start automatically when you log in (with admin privileges):
+To have TerminalWhisper start automatically when you log in:
 
 ### Option 1: PowerShell (Recommended)
 
-Run this in an **Administrator PowerShell**, replacing the path with your actual exe location:
+Run this in PowerShell, replacing the path with your actual exe location:
 
 ```powershell
-$exePath = "C:\path\to\TerminalWhisper.exe"
+$exePath = "C:\path\to\TerminalWhisper\TerminalWhisper.exe"
 $workingDir = Split-Path $exePath
 $action = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $workingDir
 $trigger = New-ScheduledTaskTrigger -AtLogOn
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-Register-ScheduledTask -TaskName "TerminalWhisper" -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force
+Register-ScheduledTask -TaskName "TerminalWhisper" -Action $action -Trigger $trigger -Settings $settings -Force
 ```
 
 **Important:** The working directory must be set so the app can find your `.env` file.
@@ -118,7 +112,6 @@ Register-ScheduledTask -TaskName "TerminalWhisper" -Action $action -Trigger $tri
 
 3. **General tab:**
    - Name: `TerminalWhisper`
-   - Check "Run with highest privileges"
    - Configure for: Windows 10/11
 
 4. **Triggers tab:**
@@ -130,10 +123,8 @@ Register-ScheduledTask -TaskName "TerminalWhisper" -Action $action -Trigger $tri
 5. **Actions tab:**
    - Click "New..."
    - Action: "Start a program"
-   - Program/script: `C:\path\to\TerminalWhisper.exe`
-   - **Start in (optional):** `C:\path\to` (the folder containing the exe and .env file - **required!**)
-   - (Or for Python: `C:\path\to\venv\Scripts\pythonw.exe`)
-   - Add arguments (Python only): `C:\path\to\voice_input.py`
+   - Program/script: `C:\path\to\TerminalWhisper\TerminalWhisper.exe`
+   - **Start in (optional):** `C:\path\to\TerminalWhisper` (the folder containing the exe and .env file - **required!**)
    - Click OK
 
 6. **Conditions tab:**
@@ -141,11 +132,11 @@ Register-ScheduledTask -TaskName "TerminalWhisper" -Action $action -Trigger $tri
 
 7. Click **OK** to save
 
-The app will now start automatically at login with admin privileges, no UAC prompt required.
+The app will now start automatically at login.
 
 ### Disabling Auto-Start
 
-To remove the scheduled task, run in **Administrator PowerShell**:
+To remove the scheduled task:
 
 ```powershell
 schtasks /delete /tn "TerminalWhisper" /f
@@ -153,10 +144,30 @@ schtasks /delete /tn "TerminalWhisper" /f
 
 Or open Task Scheduler, find "TerminalWhisper" in the list, right-click and delete.
 
-## Stopping the App
+## Tray Icon Menu
 
-- **Right-click** the tray icon (green/red/yellow circle) → **Exit**
-- Or use Task Manager to end the process
+Right-click the tray icon (green/red/yellow circle) for these options:
+
+- **Status** - Shows the current state (e.g., "Running", "Resumed from sleep", "Hotkey re-registered")
+- **Re-register Hotkey** - Re-registers the system hotkey. Use this if the hotkey stops responding.
+- **View Log** - Opens the log file
+- **Exit** - Stops the app
+
+You can also end the process via Task Manager.
+
+## Reliability
+
+TerminalWhisper uses the Win32 `RegisterHotKey` API to register Ctrl+` as a system-wide hotkey. This is more reliable than low-level keyboard hooks because:
+
+- **No hook death** - `RegisterHotKey` is managed by the OS and cannot be silently removed
+- **No admin required** - Works without elevated privileges
+- **Built-in suppression** - The hotkey combo is consumed by the OS and not passed to other apps
+- **Sleep/wake safe** - The registration survives system sleep/wake cycles
+
+Additional reliability features:
+- **Single-instance guard** - Only one copy of TerminalWhisper can run at a time
+- **Sleep/wake detection** - The app detects system resume events and updates the tray status
+- **Manual re-register** - Right-click the tray icon and select "Re-register Hotkey" if the hotkey stops working
 
 ## Configuration
 
@@ -175,14 +186,16 @@ CHANNELS = 1         # Mono
 PASTE_DELAY = 0.05   # 50ms
 ```
 
-## Why Administrator Privileges?
+## Building the Executable
 
-TerminalWhisper requires admin rights to:
+To build the app:
 
-1. **Suppress the hotkey** - Prevents Ctrl+` from triggering other app shortcuts (like opening VS Code's terminal)
-2. **Global keyboard hooks** - The `keyboard` library needs elevated permissions on Windows to capture keys system-wide
+```bash
+pip install pyinstaller
+pyinstaller TerminalWhisper.spec
+```
 
-Without admin rights, the hotkey will still work but won't be suppressed, meaning other apps may also respond to Ctrl+`.
+The output is a folder at `dist/TerminalWhisper/` containing `TerminalWhisper.exe` and all dependencies. Distribute this folder as a zip file. Users need to create a `.env` file inside the folder with their API key.
 
 ## Troubleshooting
 
@@ -191,9 +204,10 @@ Without admin rights, the hotkey will still work but won't be suppressed, meanin
 - Check the API key is correct and has no extra spaces
 
 ### Hotkey not working
-- Confirm you're running as Administrator
+- Right-click the tray icon and select "Re-register Hotkey"
 - Check the tray icon is visible (green circle)
 - Try pressing the keys slowly: Ctrl first, then backtick
+- Check the log file for "RegisterHotKey FAILED" errors
 
 ### Text not pasting
 - Some applications block simulated keyboard input
@@ -207,17 +221,6 @@ Without admin rights, the hotkey will still work but won't be suppressed, meanin
 ### Tray icon not visible
 - Click the "^" arrow in the system tray to see hidden icons
 - Drag the icon to the visible area if desired
-
-## Building the Executable
-
-To create your own `.exe`:
-
-```bash
-pip install pyinstaller
-pyinstaller --onefile --noconsole --name TerminalWhisper voice_input.py
-```
-
-The executable will be in the `dist` folder. Users will need to create their own `.env` file with their API key in the same folder as the exe.
 
 ## Privacy & Security
 

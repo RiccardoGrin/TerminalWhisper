@@ -1,132 +1,150 @@
-"""Global hotkey manager using keyboard library with suppression."""
+"""Global hotkey manager using Win32 RegisterHotKey API."""
 
+import ctypes
+import ctypes.wintypes as wt
+import logging
 import threading
+import time
 from typing import Callable, Optional
-import keyboard
-from config import HOTKEY_MODIFIERS, HOTKEY_KEY
+
+from config import HOTKEY_VK, HOTKEY_MOD
+
+log = logging.getLogger(__name__)
+
+user32 = ctypes.windll.user32
+
+# Win32 constants
+WM_HOTKEY = 0x0312
+MOD_NOREPEAT = 0x4000
+_HOTKEY_ID = 1
+
+# For release detection polling
+VK_CONTROL = 0x11
+_POLL_INTERVAL = 0.020  # 20ms
 
 
 class HotkeyManager:
-    """Manages global hotkey detection for push-to-talk with key suppression."""
+    """Manages global hotkey detection for push-to-talk using RegisterHotKey."""
 
     def __init__(
         self,
         on_press: Optional[Callable[[], None]] = None,
         on_release: Optional[Callable[[], None]] = None,
+        on_status_change: Optional[Callable[[str], None]] = None,
     ):
-        """
-        Initialize hotkey manager.
-
-        Args:
-            on_press: Callback when hotkey combo is pressed
-            on_release: Callback when hotkey combo is released
-        """
         self._on_press = on_press
         self._on_release = on_release
+        self._on_status_change = on_status_change
         self._hotkey_active = False
         self._running = False
-        self._wait_thread: Optional[threading.Thread] = None
-
-        # Build hotkey string (e.g., "ctrl+`")
-        modifiers = "+".join(sorted(HOTKEY_MODIFIERS))
-        self._hotkey_string = f"{modifiers}+{HOTKEY_KEY}" if modifiers else HOTKEY_KEY
-
-    def _on_hotkey_press(self):
-        """Handle hotkey press event."""
-        if not self._hotkey_active:
-            self._hotkey_active = True
-            if self._on_press:
-                self._on_press()
-
-    def _on_any_key_release(self, event):
-        """Handle any key release to detect when hotkey combo is broken."""
-        if not self._hotkey_active:
-            return
-
-        # Check if a key in our combo was released
-        key_name = event.name.lower() if event.name else ""
-
-        # Normalize modifier names
-        modifier_map = {
-            "ctrl": "ctrl",
-            "left ctrl": "ctrl",
-            "right ctrl": "ctrl",
-            "shift": "shift",
-            "left shift": "shift",
-            "right shift": "shift",
-            "alt": "alt",
-            "left alt": "alt",
-            "right alt": "alt",
-        }
-
-        normalized = modifier_map.get(key_name, key_name)
-
-        # Check if released key is part of our hotkey
-        is_main_key = (key_name == HOTKEY_KEY or key_name == "grave" or
-                       normalized == HOTKEY_KEY)
-        is_modifier = normalized in HOTKEY_MODIFIERS
-
-        if is_main_key or is_modifier:
-            self._hotkey_active = False
-            if self._on_release:
-                self._on_release()
+        self._stop_event = threading.Event()
+        self._msg_thread: Optional[threading.Thread] = None
+        self._registered = False
 
     def start(self):
         """Start listening for hotkeys."""
         self._running = True
+        self._stop_event.clear()
 
-        # Register hotkey with suppression
-        keyboard.add_hotkey(
-            self._hotkey_string,
-            self._on_hotkey_press,
-            suppress=True,
-            trigger_on_release=False,
-        )
+        self._msg_thread = threading.Thread(target=self._message_loop, daemon=True)
+        self._msg_thread.start()
 
-        # Hook key releases to detect when combo is broken
-        keyboard.on_release(self._on_any_key_release)
+    def _register(self) -> bool:
+        """Register the hotkey. Must be called from the message loop thread."""
+        modifiers = HOTKEY_MOD | MOD_NOREPEAT
+        result = user32.RegisterHotKey(None, _HOTKEY_ID, modifiers, HOTKEY_VK)
+        if result:
+            self._registered = True
+            log.info("RegisterHotKey succeeded (vk=0x%02X, mod=0x%04X)", HOTKEY_VK, modifiers)
+        else:
+            error = ctypes.windll.kernel32.GetLastError()
+            log.error("RegisterHotKey FAILED (error=%d)", error)
+            self._report_status("Hotkey registration failed")
+        return bool(result)
 
-        # Start a thread that keeps the manager alive
-        self._wait_thread = threading.Thread(target=self._wait_loop, daemon=True)
-        self._wait_thread.start()
+    def _unregister(self):
+        """Unregister the hotkey. Must be called from the message loop thread."""
+        if self._registered:
+            user32.UnregisterHotKey(None, _HOTKEY_ID)
+            self._registered = False
+            log.info("UnregisterHotKey done")
 
-    def _wait_loop(self):
-        """Keep the manager running."""
+    def _message_loop(self):
+        """GetMessage loop that receives WM_HOTKEY messages."""
+        if not self._register():
+            return
+
+        msg = wt.MSG()
         while self._running:
-            keyboard.wait()
+            result = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
+            if result == -1 or result == 0:
+                break
+            if msg.message == WM_HOTKEY and msg.wParam == _HOTKEY_ID:
+                self._on_hotkey_detected()
+
+        self._unregister()
+
+    def _on_hotkey_detected(self):
+        """Handle hotkey press, then poll for release."""
+        if self._hotkey_active:
+            return
+
+        self._hotkey_active = True
+        log.info("Hotkey PRESSED")
+        if self._on_press:
+            self._on_press()
+
+        # Poll for Ctrl release in a separate thread to not block GetMessage
+        threading.Thread(target=self._poll_release, daemon=True).start()
+
+    def _poll_release(self):
+        """Poll GetAsyncKeyState until Ctrl is released."""
+        while self._running:
+            time.sleep(_POLL_INTERVAL)
+            # GetAsyncKeyState returns short; high bit set = key is down
+            state = user32.GetAsyncKeyState(VK_CONTROL)
+            if not (state & 0x8000):
+                break
+
+        if self._hotkey_active:
+            self._hotkey_active = False
+            log.info("Hotkey RELEASED")
+            if self._on_release:
+                self._on_release()
 
     def stop(self):
         """Stop listening for hotkeys."""
         self._running = False
-        keyboard.unhook_all()
+        # Post WM_QUIT to break GetMessage loop
+        thread_id = self._msg_thread.ident if self._msg_thread else 0
+        if thread_id:
+            user32.PostThreadMessageW(thread_id, 0x0012, 0, 0)  # WM_QUIT
+        self._stop_event.set()
 
     def reinitialize(self):
-        """
-        Re-register hotkey hooks.
-
-        Call this after system resume from sleep to restore functionality.
-        Windows may invalidate low-level hooks during sleep/wake cycles.
-        """
-        # Clear any stale hook state
+        """Re-register the hotkey (unregister then register)."""
         self._hotkey_active = False
+        # Post a custom message to re-register on the message loop thread
+        # Since Register/UnregisterHotKey must be called from the same thread,
+        # we stop and restart the message loop
+        self.stop()
+        if self._msg_thread:
+            self._msg_thread.join(timeout=2.0)
+        self._running = True
+        self._stop_event.clear()
+        self._msg_thread = threading.Thread(target=self._message_loop, daemon=True)
+        self._msg_thread.start()
+        log.info("Hotkey reinitialized")
+        self._report_status("Hotkey re-registered")
 
-        # Remove all existing hooks
-        keyboard.unhook_all()
-
-        # Re-register hotkey with suppression
-        keyboard.add_hotkey(
-            self._hotkey_string,
-            self._on_hotkey_press,
-            suppress=True,
-            trigger_on_release=False,
-        )
-
-        # Re-hook key releases
-        keyboard.on_release(self._on_any_key_release)
-
-        print("Hotkey hooks reinitialized after system resume")
+    def _report_status(self, status: str):
+        """Report a status change to the callback if set."""
+        if self._on_status_change:
+            try:
+                self._on_status_change(status)
+            except Exception:
+                pass
 
     def join(self):
         """Wait for manager to finish."""
-        if self._wait_thread:
-            self._wait_thread.join()
+        self._stop_event.wait()

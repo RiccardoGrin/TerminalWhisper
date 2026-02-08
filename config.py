@@ -18,6 +18,10 @@ DTYPE = "int16"  # 16-bit audio
 HOTKEY_MODIFIERS = {"ctrl"}
 HOTKEY_KEY = "`"
 
+# Win32 hotkey constants
+HOTKEY_VK = 0xC0       # VK_OEM_3 = backtick/tilde key
+HOTKEY_MOD = 0x0002    # MOD_CONTROL
+
 # Text injection settings
 PASTE_DELAY = 0.05  # 50ms delay between clipboard copy and paste
 

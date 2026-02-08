@@ -23,9 +23,18 @@ WM_CLOSE = 0x0010
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
 
-# Define WNDPROC type
+# Set proper argument/return types for DefWindowProcW to handle 64-bit values
+user32.DefWindowProcW.argtypes = [
+    ctypes.wintypes.HWND,
+    ctypes.c_uint,
+    ctypes.wintypes.WPARAM,
+    ctypes.wintypes.LPARAM,
+]
+user32.DefWindowProcW.restype = ctypes.c_longlong
+
+# Define WNDPROC type — use c_longlong for return to match LRESULT on 64-bit
 WNDPROC = ctypes.WINFUNCTYPE(
-    ctypes.c_long,
+    ctypes.c_longlong,
     ctypes.wintypes.HWND,
     ctypes.c_uint,
     ctypes.wintypes.WPARAM,

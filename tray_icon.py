@@ -24,17 +24,27 @@ class TrayIcon:
         TrayState.PROCESSING: "#eab308",  # Yellow
     }
 
-    def __init__(self, on_exit: Optional[Callable[[], None]] = None):
+    def __init__(
+        self,
+        on_exit: Optional[Callable[[], None]] = None,
+        on_restart: Optional[Callable[[], None]] = None,
+        on_view_log: Optional[Callable[[], None]] = None,
+    ):
         """
         Initialize tray icon.
 
         Args:
             on_exit: Callback when user clicks Exit in menu
+            on_restart: Callback when user clicks Restart in menu
+            on_view_log: Callback when user clicks View Log in menu
         """
         self._on_exit = on_exit
+        self._on_restart = on_restart
+        self._on_view_log = on_view_log
         self._icon: Optional[pystray.Icon] = None
         self._state = TrayState.IDLE
         self._thread: Optional[threading.Thread] = None
+        self._status_text = "Running"
 
     def _create_icon_image(self, color: str) -> Image.Image:
         """Create a circular icon with the specified color."""
@@ -57,14 +67,38 @@ class TrayIcon:
             pystray.MenuItem("TerminalWhisper", None, enabled=False),
             pystray.MenuItem("Hold Ctrl+` to transcribe into any text input", None, enabled=False),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                lambda item: f"Status: {self._status_text}",
+                None,
+                enabled=False,
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Re-register Hotkey", self._handle_restart),
+            pystray.MenuItem("View Log", self._handle_view_log),
             pystray.MenuItem("Exit", self._handle_exit),
         )
+
+    def _handle_restart(self):
+        """Handle restart menu click."""
+        if self._on_restart:
+            self._on_restart()
+
+    def _handle_view_log(self):
+        """Handle view log menu click."""
+        if self._on_view_log:
+            self._on_view_log()
 
     def _handle_exit(self):
         """Handle exit menu click."""
         if self._on_exit:
             self._on_exit()
         self.stop()
+
+    def set_status_text(self, text: str):
+        """Update the status text shown in the tray menu."""
+        self._status_text = text
+        if self._icon:
+            self._icon.update_menu()
 
     def set_state(self, state: TrayState):
         """
